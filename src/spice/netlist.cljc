@@ -7,8 +7,24 @@
   (:require [clojure.string :as str]
             [spice.circuit :as circuit]))
 
+(defn- letter-char?
+  "Portable char-is-letter test (JVM `Character/isLetter` has no cljs
+  equivalent; cljs chars are single-char strings, so a regex works there)."
+  [c]
+  #?(:clj (Character/isLetter ^char c)
+     :cljs (some? (re-matches #"[a-zA-Z]" c))))
+
+(defn- eng-parse-double
+  "Portable strict double parse: throws on malformed input on both
+  platforms (JVM `Double/parseDouble` throws; `js/parseFloat` returns
+  NaN instead, so wrap it to preserve the caller's try/catch fallback)."
+  [s]
+  #?(:clj (Double/parseDouble s)
+     :cljs (let [n (js/parseFloat s)]
+             (if (js/isNaN n) (throw (js/Error. "not a number")) n))))
+
 (defn- split-suffix [s]
-  (let [idx (or (first (keep-indexed (fn [i c] (when (or (Character/isLetter ^char c) (= c \µ)) i)) s))
+  (let [idx (or (first (keep-indexed (fn [i c] (when (or (letter-char? c) (= c \µ)) i)) s))
                 (count s))]
     [(subs s 0 idx) (subs s idx)]))
 
@@ -19,10 +35,10 @@
     (if (str/blank? s)
       0.0
       (try
-        (Double/parseDouble s)
+        (eng-parse-double s)
         (catch #?(:clj NumberFormatException :cljs js/Error) _
           (let [[num-part suffix] (split-suffix s)
-                base (try (Double/parseDouble num-part) (catch #?(:clj NumberFormatException :cljs js/Error) _ 0.0))
+                base (try (eng-parse-double num-part) (catch #?(:clj NumberFormatException :cljs js/Error) _ 0.0))
                 mult (case (str/lower-case suffix)
                        "t" 1e12 "g" 1e9 ("meg" "x") 1e6 "k" 1e3 "m" 1e-3
                        ("u" "µ") 1e-6 "n" 1e-9 "p" 1e-12 "f" 1e-15

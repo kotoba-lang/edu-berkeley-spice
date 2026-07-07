@@ -10,7 +10,7 @@
 
 (deftest namespace-loads
   (testing "the restored CLJC namespace loads"
-    (is (some? (the-ns 'spice)))))
+    (is (some? (find-ns 'spice)))))
 
 ;; mirrors `dc_op_voltage_divider`: R1=1k, R2=1k, V1=10V -> V(mid) = 5V
 (deftest dc-op-voltage-divider

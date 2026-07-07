@@ -77,3 +77,96 @@
         result (analysis/solve-dc-op ckt)
         v-a (first (get-in result [:node-voltages "a"]))]
     (is (< (Math/abs (- v-a 1.0)) 1e-9))))
+
+;; New: Newton-Raphson nonlinear DC-op (spice.analysis/solve-dc-op-nonlinear).
+;;
+;; Diode test: V1=5V -- R1=1k -- D1(anode) -> D1(cathode)=0. Shockley
+;; equation + KVL, solved analytically by bisection ahead of time (with
+;; the same Is=1e-14/n=1.0/Vt=0.02585 defaults `spice.analysis` falls back
+;; to) as the ground truth this test asserts against:
+;;   (5 - Vd)/1000 = 1e-14 * (exp(Vd/0.02585) - 1)
+;;   => Vd ~= 0.692490375 V, I ~= 4.307509625 mA
+(deftest dc-op-diode
+  (let [ckt (-> (circuit/circuit)
+                (circuit/add-element {:kind :voltage-source :name "V1"
+                                       :n-pos "in" :n-neg "0" :dc-value 5.0
+                                       :ac-mag 0.0 :ac-phase 0.0})
+                (circuit/add-element {:kind :resistor :name "R1" :n1 "in" :n2 "a" :value 1000.0})
+                (circuit/add-element (circuit/diode "D1" "a" "0")))
+        result (analysis/solve-dc-op-nonlinear ckt)
+        v-d (first (get-in result [:node-voltages "a"]))
+        i-d (/ (- 5.0 v-d) 1000.0)]
+    (is (true? (:converged? result)))
+    (is (< (:iterations result) 50))
+    ;; diode drop lands in the expected ~0.6-0.7V forward-conduction band
+    (is (< 0.6 v-d 0.7))
+    (is (< (Math/abs (- v-d 0.692490375)) 1e-4))
+    (is (< (Math/abs (- i-d 4.307509625e-3)) 1e-7))))
+
+;; MOSFET test: common-source stage. Vdd=5V through RD=10k into the drain;
+;; ideal Vgg=2V straight onto the gate (zero DC gate current, so Vgs=2V
+;; exactly); source+bulk grounded. Square law with the default Vth=0.7/
+;; Kp=2e-4: Vov = Vgs-Vth = 1.3V. Assume saturation and check self-
+;; consistently: Id = Kp/2 * Vov^2 = 1e-4 * 1.69 = 169uA,
+;; Vds = Vdd - Id*RD = 5 - 1.69 = 3.31V >= Vov=1.3V -- saturation confirmed.
+(deftest dc-op-mosfet
+  (let [ckt (-> (circuit/circuit)
+                (circuit/add-element {:kind :voltage-source :name "Vdd"
+                                       :n-pos "vdd" :n-neg "0" :dc-value 5.0
+                                       :ac-mag 0.0 :ac-phase 0.0})
+                (circuit/add-element {:kind :voltage-source :name "Vgg"
+                                       :n-pos "g" :n-neg "0" :dc-value 2.0
+                                       :ac-mag 0.0 :ac-phase 0.0})
+                (circuit/add-element {:kind :resistor :name "RD" :n1 "vdd" :n2 "d" :value 10000.0})
+                (circuit/add-element (circuit/mosfet "M1" "d" "g" "0" "0")))
+        result (analysis/solve-dc-op-nonlinear ckt)
+        v-d (first (get-in result [:node-voltages "d"]))
+        v-g (first (get-in result [:node-voltages "g"]))
+        i-d (/ (- 5.0 v-d) 10000.0)]
+    (is (true? (:converged? result)))
+    (is (< (:iterations result) 50))
+    (is (< (Math/abs (- v-g 2.0)) 1e-6))
+    (is (< (Math/abs (- v-d 3.31)) 1e-4))
+    (is (< (Math/abs (- i-d 1.69e-4)) 1e-8))))
+
+;; BJT test: common-emitter bias with an ideal Vbe=0.6V straight onto the
+;; base (emitter grounded), collector via RC=1k to Vcc=5V. Forward-active
+;; Ebers-Moll with defaults Is=1e-16/beta=100/Vt=0.02585:
+;;   Ic = Is * exp(Vbe/Vt) ~= 1.203195328e-6 A, Vc = Vcc - Ic*RC ~= 4.998797V
+(deftest dc-op-bjt
+  (let [ckt (-> (circuit/circuit)
+                (circuit/add-element {:kind :voltage-source :name "Vcc"
+                                       :n-pos "vcc" :n-neg "0" :dc-value 5.0
+                                       :ac-mag 0.0 :ac-phase 0.0})
+                (circuit/add-element {:kind :voltage-source :name "Vbb"
+                                       :n-pos "b" :n-neg "0" :dc-value 0.6
+                                       :ac-mag 0.0 :ac-phase 0.0})
+                (circuit/add-element {:kind :resistor :name "RC" :n1 "vcc" :n2 "c" :value 1000.0})
+                (circuit/add-element (circuit/bjt "Q1" "c" "b" "0")))
+        result (analysis/solve-dc-op-nonlinear ckt)
+        v-c (first (get-in result [:node-voltages "c"]))
+        i-c (/ (- 5.0 v-c) 1000.0)]
+    (is (true? (:converged? result)))
+    (is (< (:iterations result) 50))
+    (is (< (Math/abs (- v-c 4.998796804671636)) 1e-6))
+    (is (< (Math/abs (- i-c 1.203195328363829e-6)) 1e-9))))
+
+;; Regression: a purely-linear circuit routed through the new NR driver
+;; still produces the same result as the original `solve-dc-op` (same
+;; fixture as `dc-op-voltage-divider`) -- confirms `solve-dc-op-nonlinear`
+;; doesn't change linear-circuit answers, just how many damped-Newton
+;; steps it takes to walk the all-zero initial guess to them.
+(deftest dc-op-nonlinear-matches-linear-for-linear-circuit
+  (let [ckt (-> (circuit/circuit)
+                (circuit/add-element {:kind :voltage-source :name "V1"
+                                       :n-pos "in" :n-neg "0" :dc-value 10.0
+                                       :ac-mag 0.0 :ac-phase 0.0})
+                (circuit/add-element {:kind :resistor :name "R1"
+                                       :n1 "in" :n2 "mid" :value 1000.0})
+                (circuit/add-element {:kind :resistor :name "R2"
+                                       :n1 "mid" :n2 "0" :value 1000.0}))
+        linear-result (analysis/solve-dc-op ckt)
+        nr-result (analysis/solve-dc-op-nonlinear ckt)]
+    (is (true? (:converged? nr-result)))
+    (is (= (:node-voltages linear-result) (:node-voltages nr-result)))
+    (is (= (:branch-currents linear-result) (:branch-currents nr-result)))))

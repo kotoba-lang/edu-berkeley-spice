@@ -14,6 +14,11 @@
 
   Zero-dep portable CLJC — pure data + pure functions, no IO/GPU. Circuit
   sizes are node-count scale (coarse-grained per ADR-2607010930), not a
-  per-pixel/per-frame hot loop. Nonlinear devices (MOSFET/BJT/diode) are not
-  yet solved (matches the original — DC-op requires Newton-Raphson, future
-  work). Depends on kotoba-lang/engineer for shared contracts.")
+  per-pixel/per-frame hot loop. Nonlinear devices (MOSFET/BJT/diode) are
+  solved via `spice.analysis/solve-dc-op-nonlinear`, which re-linearizes
+  each device into a companion MNA model every Newton-Raphson iteration
+  (documented simplifications: MOSFET has no channel-length modulation or
+  body effect, BJT is forward-active-only, no temperature sweep — see
+  `spice.analysis`'s namespace docstring). `spice.analysis/solve-dc-op`
+  remains the original purely-linear fast path, unchanged. Depends on
+  kotoba-lang/engineer for shared contracts.")

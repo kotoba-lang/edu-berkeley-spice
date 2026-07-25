@@ -61,3 +61,17 @@ safety cap; the result map adds `:iterations`/`:converged?` on top of
 ```bash
 clojure -M:test
 ```
+
+## Kotoba bounded profile
+
+`src/spice/bounded_nmos_library.kotoba` is a capability-free port of
+`spice.model`'s Level-1 NMOS compact-model library — a name-keyed library of
+NMOS parameter records (`vth0`/`kp`/`lambda`/`tox`/`nsub`). It uses
+`kotoba-lang/compiler`'s canonical bounded typed-map
+(`[:map :string [:record :spice/nmos …:f64…]]`, ≤31 entries) whose **value**
+is a record of `:f64` compact-model parameters — a migration unblocked by
+the compiler's f64 fixes (kotoba-lang/compiler #262/#263/#264). BJT/diode
+models, the heterogeneous model tagging, the circuit container
+(`spice.circuit`), the netlist reader, and the nonlinear DC operating-point
+solver (`spice.analysis`) stay the CLJC oracle. See
+[migration/bounded-nmos-model-library-v1.edn](migration/bounded-nmos-model-library-v1.edn).

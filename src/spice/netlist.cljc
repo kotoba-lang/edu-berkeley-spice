@@ -4,7 +4,7 @@
   `.model` directives, and skips title/comment lines. `.dc`/`.ac`/`.tran`
   are not stored (matches the original — analysis-type selection is left
   to the caller)."
-  (:require [clojure.string :as str]
+  (:require [kotoba.lang.text :as str]
             [spice.circuit :as circuit]))
 
 (defn- letter-char?
@@ -39,7 +39,7 @@
         (catch #?(:clj NumberFormatException :cljs js/Error) _
           (let [[num-part suffix] (split-suffix s)
                 base (try (eng-parse-double num-part) (catch #?(:clj NumberFormatException :cljs js/Error) _ 0.0))
-                mult (case (str/lower-case suffix)
+                mult (case (str/lower suffix)
                        "t" 1e12 "g" 1e9 ("meg" "x") 1e6 "k" 1e3 "m" 1e-3
                        ("u" "µ") 1e-6 "n" 1e-9 "p" 1e-12 "f" 1e-15
                        1.0)]
@@ -48,7 +48,7 @@
 (defn- find-param [tokens key]
   (some (fn [t]
           (when-let [rest (or (when (str/starts-with? t key) (subs t (count key)))
-                               (let [lk (str/lower-case key)]
+                               (let [lk (str/lower key)]
                                  (when (str/starts-with? t lk) (subs t (count lk)))))]
             (when (str/starts-with? rest "=")
               (parse-eng (subs rest 1)))))
@@ -82,7 +82,7 @@
                 (if (empty? tokens)
                   (recur (rest remaining) (inc line-num) title-skipped ckt)
                   (let [first-tok (first tokens)
-                        prefix (str/upper-case (str (first first-tok)))
+                        prefix (str/upper (str (first first-tok)))
                         n (count tokens)]
                     (case prefix
                       "R"
@@ -150,7 +150,7 @@
                                                           :anode (nth tokens 1) :cathode (nth tokens 2)
                                                           :model-name (nth tokens 3)})))
                       "."
-                      (let [directive (str/lower-case first-tok)]
+                      (let [directive (str/lower first-tok)]
                         (recur (rest remaining) (inc line-num) title-skipped
                                (if (and (= directive ".model") (>= n 3))
                                  (assoc-in ckt [:models (nth tokens 1)] (str/join " " (subvec tokens 2)))

@@ -59,7 +59,7 @@ safety cap; the result map adds `:iterations`/`:converged?` on top of
 ## Develop
 
 ```bash
-clojure -M:test
+kbb -M:test
 ```
 
 ## Kotoba bounded profile

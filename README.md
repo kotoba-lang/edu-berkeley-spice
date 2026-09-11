@@ -19,7 +19,7 @@ Depends on `kotoba-lang/engineer` for shared contracts (constraint/DRC/etc).
 ## Status
 
 Restored — all 4 modules ported from the original 809-line Rust `lib.rs`,
-with all 5 original Rust unit tests mirrored 1:1 in `test/spice_test.cljc`
+with all 5 original Rust unit tests mirrored 1:1 in `test/spice_test.cljk`
 (+1 smoke test). Pure data + pure functions throughout; matrix ops use
 plain nested vectors (circuit sizes are node-count scale — coarse-grained
 per ADR-2607010930, not a per-pixel/per-frame hot loop).

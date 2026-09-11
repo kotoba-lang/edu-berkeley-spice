@@ -1,6 +1,6 @@
 {:schema "kotoba-spice-migration/v1"
  :profile :spice/bounded-nmos-model-library-v1
- :legacy {:source "src/spice/model.cljc" :status :retained-general-oracle}
+ :legacy {:source "src/spice/model.cljk" :status :retained-general-oracle}
  :canonical {:kernel-and-conformance "src/spice/bounded_nmos_library.kotoba"}
  :domain
  {:functions [:nmos :make-library :add-nmos :model-count :has-model? :nmos-vth0-bits-or :default-nmos]
